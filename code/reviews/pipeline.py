@@ -220,5 +220,33 @@ def subjects_step(reviews: pd.DataFrame, mentions: pd.DataFrame,
     cache when the request is exactly the same, so the same reviews must
     produce the same list every time.
     """
-    # TODO: your code here
-    pass
+    columns = ["review_id", "mention", "subject", "subject_confidence"]
+    if os.path.exists(cache_file):
+        return pd.read_csv(cache_file)
+
+    rows = []
+    for review in reviews.to_dict("records"):
+        review_mentions = (
+            mentions.loc[mentions["review_id"] == review["review_id"]]
+            .sort_values("mention_offset")["mention"]
+            .drop_duplicates()
+            .tolist()
+        )
+        if not review_mentions:
+            continue
+
+        response = classify_mentions(review["text"], review_mentions)
+        for mention in review_mentions:
+            answer = response["answers"][mention]
+            rows.append(
+                {
+                    "review_id": review["review_id"],
+                    "mention": mention,
+                    "subject": answer["choice"],
+                    "subject_confidence": answer["confidence"],
+                }
+            )
+
+    result = pd.DataFrame(rows, columns=columns)
+    result.to_csv(cache_file, index=False)
+    return result
