@@ -1,7 +1,10 @@
-Write your reflection here.
-
-See reflection.md for what makes a good reflection — be specific, use the
-terminology from this assignment (REST API, endpoint, HTTP status code,
-raise_for_status, API key, form data vs. JSON body, rate limit, caching,
-json_normalize, record_path, meta, grain, opinion mining, named-entity
-recognition, prompt, system prompt, reasoning model), and make it actionable.
+I learned how to call a REST API by choosing an endpoint, adding my API key, 
+and sending form data or JSON format. I also learned to use raise_for_status() 
+to find where errors occur. Flattening the JSON was harder than I expected. 
+json_normalize with record_path and meta helped, but I had to think about what 
+each row was supposed to represent, like one review or one entity, or my counts 
+would be wrong. I was also surprised by how useful error codes are for figuring 
+out how to approach an unsuccessful attempt, and that the system prompt changed 
+the answers even with a reasoning model. Now that I know how to do these tasks, 
+next time I can check the nested response before flattening it and compare a few 
+prompts against examples I label myself.
