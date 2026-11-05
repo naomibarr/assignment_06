@@ -49,8 +49,20 @@ def sentiment_step(reviews: pd.DataFrame, cache_file: str) -> list:
     re-run on the same reviews is free either way — but your cache also works
     offline, and it is what makes the transform steps below fast to debug.
     """
-    # TODO: your code here
-    pass
+    if os.path.exists(cache_file):
+        with open(cache_file) as fh:
+            return json.load(fh)
+
+    documents = []
+    for review in reviews.to_dict("records"):
+        response = get_sentiment(review["text"])
+        document = response["results"]["documents"][0]
+        document["review_id"] = review["review_id"]
+        documents.append(document)
+
+    with open(cache_file, "w") as fh:
+        json.dump(documents, fh)
+    return documents
 
 
 def entities_step(reviews: pd.DataFrame, cache_file: str) -> list:
@@ -59,8 +71,20 @@ def entities_step(reviews: pd.DataFrame, cache_file: str) -> list:
     One dict per review: the Azure entity-recognition document with `review_id`
     added. Same cache rule, same loop, `get_entities` instead of `get_sentiment`.
     """
-    # TODO: your code here
-    pass
+    if os.path.exists(cache_file):
+        with open(cache_file) as fh:
+            return json.load(fh)
+
+    documents = []
+    for review in reviews.to_dict("records"):
+        response = get_entities(review["text"])
+        document = response["results"]["documents"][0]
+        document["review_id"] = review["review_id"]
+        documents.append(document)
+
+    with open(cache_file, "w") as fh:
+        json.dump(documents, fh)
+    return documents
 
 
 def sentences_table(documents: list) -> pd.DataFrame:
@@ -77,8 +101,23 @@ def sentences_table(documents: list) -> pd.DataFrame:
     and `.cumcount()`. Keep only the six columns above. Strip the trailing space
     Azure leaves on `sentence_text` with `.str.strip()`.
     """
-    # TODO: your code here
-    pass
+    table = pd.json_normalize(
+        documents,
+        record_path="sentences",
+        meta=["review_id"],
+        record_prefix="sentence_",
+    )
+    table["sentence_id"] = table.groupby("review_id").cumcount()
+    table["sentence_text"] = table["sentence_text"].str.strip()
+    columns = [
+        "review_id",
+        "sentence_id",
+        "sentence_text",
+        "sentence_sentiment",
+        "sentence_offset",
+        "sentence_length",
+    ]
+    return table[columns]
 
 
 def opinions_table(documents: list) -> pd.DataFrame:
@@ -105,8 +144,38 @@ def opinions_table(documents: list) -> pd.DataFrame:
     `pd.DataFrame(rows, columns=[...the seven names...])`, so a set of reviews
     with no targets still gives a table with the right columns.
     """
-    # TODO: your code here
-    pass
+    rows = []
+    for document in documents:
+        for sentence_id, sentence in enumerate(document["sentences"]):
+            assessments = sentence["assessments"]
+            for target in sentence["targets"]:
+                target_assessments = [
+                    assessments[int(relation["ref"].split("/")[-1])]["text"]
+                    for relation in target["relations"]
+                    if relation["relationType"] == "assessment"
+                ]
+                rows.append(
+                    {
+                        "review_id": document["review_id"],
+                        "sentence_id": sentence_id,
+                        "mention": target["text"],
+                        "mention_sentiment": target["sentiment"],
+                        "assessments": ", ".join(target_assessments),
+                        "mention_offset": target["offset"],
+                        "source": "opinion",
+                    }
+                )
+
+    columns = [
+        "review_id",
+        "sentence_id",
+        "mention",
+        "mention_sentiment",
+        "assessments",
+        "mention_offset",
+        "source",
+    ]
+    return pd.DataFrame(rows, columns=columns)
 
 
 def entities_table(documents: list) -> pd.DataFrame:
@@ -121,8 +190,15 @@ def entities_table(documents: list) -> pd.DataFrame:
     `.isin(MENTION_CATEGORIES)` on `entity_category`. A document with no
     entities contributes no rows, which `json_normalize` handles for you.
     """
-    # TODO: your code here
-    pass
+    table = pd.json_normalize(
+        documents,
+        record_path="entities",
+        meta=["review_id"],
+        record_prefix="entity_",
+    )
+    table = table[table["entity_category"].isin(MENTION_CATEGORIES)]
+    columns = ["review_id", "entity_text", "entity_category", "entity_offset"]
+    return table[columns].reset_index(drop=True)
 
 
 def subjects_step(reviews: pd.DataFrame, mentions: pd.DataFrame,
